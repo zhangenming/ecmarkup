@@ -594,9 +594,26 @@ export default class Spec {
 
     if (this.opts.printable) {
       this.log('Building covers and applying other print tweaks...');
+
+      const intro = this.doc.querySelector('emu-intro');
+
+      if (this.opts.status === 'standard') {
+        if (this.opts.committee) {
+          const adoptionInfo = this.doc.createElement('p');
+
+          adoptionInfo.classList.add('adoption-info');
+          adoptionInfo.innerHTML = `This Ecma Standard was developed by Technical Committee ${this.opts.committee} and was adopted by the General Assembly of ${Intl.DateTimeFormat('en-GB-oxendict', { month: 'long', year: 'numeric' }).format(this.opts.date)}.`;
+          intro!.appendChild(adoptionInfo);
+        } else {
+          throw new Error(
+            '"standard" status requires a technical committee be defined in the "committee" field of the metadata.',
+          );
+        }
+      }
+
       const metadataEle = this.doc.querySelector('#metadata-block');
       if (metadataEle) {
-        this.doc.querySelector('emu-intro')!.appendChild(metadataEle);
+        intro!.appendChild(metadataEle);
       }
 
       // front cover
@@ -629,7 +646,8 @@ export default class Spec {
       this.log('Building table of contents...');
 
       if (this.opts.printable) {
-        new Toc(this).build(2);
+        // Ecma guidance directs three levels of clause in ToC
+        new Toc(this).build(3);
       } else {
         ({ js: tocJs, eles: commonEles } = makeMenu(this));
       }
@@ -1194,11 +1212,7 @@ ${await utils.readFile(path.join(__dirname, '../js/multipage.js'))}
       script.setAttribute('defer', '');
       this.doc.head.appendChild(script);
 
-      this.addStyle(
-        this.doc.head,
-        path.relative(outDir, printStyleLocationOnDisk),
-        this.opts.printable ? undefined : 'print',
-      );
+      this.addStyle(this.doc.head, path.relative(outDir, printStyleLocationOnDisk), 'print');
       this.addStyle(this.doc.head, path.relative(outDir, styleLocationOnDisk));
     } else {
       // i.e. assets.type === 'inline'
@@ -1494,15 +1508,14 @@ ${this.opts.multipage ? `<li><span>Navigate to/from multipage</span><code>m</cod
       }
     }
 
-    // no title boilerplate generated if title not specified
-    if (!title) return;
-
     // title
     if (title && !this._updateBySelector('title', title)) {
       const titleElem = this.doc.createElement('title');
       titleElem.innerHTML = utils.textContentFromHTML(this.doc, title);
       this.doc.head.appendChild(titleElem);
+    }
 
+    if (title && !this._updateBySelector('h1.title', title)) {
       const h1 = this.doc.createElement('h1');
       h1.setAttribute('class', 'title');
       h1.innerHTML = title;
@@ -1615,7 +1628,11 @@ ${this.opts.multipage ? `<li><span>Navigate to/from multipage</span><code>m</cod
       }
     }
 
-    let copyright = getBoilerplate(copyrightFile || `${this.opts.status}-copyright`);
+    // Ecma documents should exclusively have either the standard copyright or the alternative copyright.
+    // Proposals are not Ecma documents.
+    let copyright = getBoilerplate(
+      copyrightFile || `${this.opts.status !== 'proposal' ? 'standard' : 'proposal'}-copyright`,
+    );
     const copyrightElement = this.doc.createElement('div');
 
     copyrightElement.classList.add('copyright-notice');
